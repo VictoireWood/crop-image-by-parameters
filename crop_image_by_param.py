@@ -1,16 +1,16 @@
-yaw = 70     # 偏航角，用度做单位
-pitch = 20   # 俯仰角
-roll = 20    # 滚转角
-h = 300      # 相机到地面高度，用米做单位
-# 内参矩阵，都以像素为单位
+yaw = 3.300000+2.200000     # 偏航角，用度做单位
+pitch = -19.799999+6.200000+180    # 俯仰角
+roll = -20.400000+180    # 滚转角
+h = 199.000000      # 相机到地面高度，用米做单位
+# 内参矩阵，都以像素为单位  8.0 mm
 f_x = 1200
 f_y = 1200
-c_x = 320
-c_y = 240
+c_x = 2000
+c_y = 1500
 
 # 底片像素宽、高，单位为像素
-H = 480
-W = 640
+H = 3000
+W = 4000
 
 # 已知遥感地图的四角UTM坐标以及遥感地图大小
 # UTM坐标系下的点
@@ -21,18 +21,19 @@ W = 640
 # e = 500
 # n = 500
 # 地图四个角点的经纬度坐标，1为左上，2为右下
-lat_1 = 31.08564938117800
-lon_1 = 121.34485244750999
-lat_2 = 31.12900748947800
-lon_2 = 121.43737792968800
+lat_1 = 36.607321780842
+lon_1 = 120.430745854908
+lat_2 = 36.587287108611
+lon_2 = 120.456556510736
 # 相机中心的垂点的经纬度坐标
-lat = 31.10
-lon = 121.36
+# 36 deg 35' 28.05" N, 120 deg 27' 17.95" E
+lat = 36.5911250000
+lon = 120.4549861111
 
 # 原始地图路径
-map_path = r"E:\GeoVINS\Datasets\202412sum\ct02\ct02\@201802@121.34485244750999@31.08564938117800@121.43737792968800@31.12900748947800@.tif"
+map_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test.tif"
 # 切割后地图路径
-save_path = r"E:\GeoVINS\Datasets\202412sum\ct02\ct02\@201802@121.34485244750999@31.08564938117800@121.43737792968800@31.12900748947800@cuttest1.tif"
+save_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test@cuttest.tif"
 
 from math import sin, cos, radians
 import utm
@@ -114,7 +115,15 @@ def get_pixel_coordinate(UTM_vertex):
         n = UTM_vertex[i][1]
         # 计算像素坐标
         u = (e - e_1) / (e_2 - e_1) * map_W
+        if u < 0:
+            u = 0
+        if u > map_W:
+            u = map_W
         v = (n - n_1) / (n_2 - n_1) * map_H
+        if v < 0:
+            v = 0
+        if v > map_H:
+            v = map_H
         pixel_coordinate[i] = np.array([u, v], dtype=np.int32)
         # print(pixel_coordinate)
     return pixel_coordinate
