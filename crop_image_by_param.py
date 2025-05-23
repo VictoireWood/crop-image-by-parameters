@@ -1,6 +1,11 @@
 yaw = 3.300000+2.200000     # 偏航角，用度做单位
 pitch = -19.799999+6.200000+180    # 俯仰角
 roll = -20.400000+180    # 滚转角
+
+# yaw = 180     # 偏航角，用度做单位
+# pitch = 180    # 俯仰角
+# roll = 0    # 滚转角
+
 h = 199.000000      # 相机到地面高度，用米做单位
 # 内参矩阵，都以像素为单位  8.0 mm
 f_x = 1200
@@ -34,6 +39,7 @@ lon = 120.4549861111
 map_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test.tif"
 # 切割后地图路径
 save_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test@cuttest.tif"
+warp_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test@warptest.tif"
 
 from math import sin, cos, radians
 import utm
@@ -88,10 +94,10 @@ def rotate_point(point, utm, R: np.ndarray): # point是指在成像平面上的�
     UTM = np.array([E, N])
     return UTM
 
-vertex = np.array([[0, 0],
-                  [W, 0],
-                  [W, H],
-                  [0, H]])
+vertex = np.array([[0, 0],  # 左上
+                  [W, 0],   # 右上
+                  [W, H],   # 右下
+                  [0, H]])  # 左下
 # 左上角：(0,0)
 # 右上角：(W,0)
 # 右下角：(W,H)
@@ -159,8 +165,38 @@ def get_cut_image(pixel_coordinate):
 
     print("图像处理完成，新图像已保存！")
 
+def get_reprojection_image(pixel_coordinate):
+    # 定义原图中待变换四边形的顶点（顺序须与目标点一一对应，数据类型为 float32）
+    src_pts = np.array(pixel_coordinate, dtype=np.float32)
+    # # 构造原图中的四边形顶点数组（顺序为左上、右上、右下、左下），数据类型应为 float32
+    # src_pts = np.array([
+    #     [x0, y0],  # 左上角
+    #     [x1, y1],  # 右上角
+    #     [x2, y2],  # 右下角
+    #     [x3, y3]   # 左下角
+    # ], dtype=np.float32)
+
+    # 构造目标图像中矩形的四个角点，目标坐标以 (0,0) 为左上角
+    dst_pts = np.array([
+        [0, 0],         # 左上角
+        [W - 1, 0],     # 右上角
+        [W - 1, H - 1], # 右下角
+        [0, H - 1]      # 左下角
+    ], dtype=np.float32)
+
+    # 计算透视变换矩阵
+    M = cv2.getPerspectiveTransform(src_pts, dst_pts)
+
+    # 对原图进行透视变换，输出图像的尺寸为 (W_new, H_new)
+    warped_img = cv2.warpPerspective(map_raw, M, (W, H))
+
+    # 将变换后的图像保存为新文件
+    cv2.imwrite(warp_path, warped_img)
+    print("变换后的图像已保存！")
+
 
 map_cropped = get_cut_image(get_pixel_coordinate(UTM_vertex))
+map_warp = get_reprojection_image(get_pixel_coordinate(UTM_vertex))
 
 
 
