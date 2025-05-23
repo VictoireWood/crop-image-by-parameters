@@ -1,10 +1,10 @@
-yaw = 3.300000+2.200000     # 偏航角，用度做单位
-pitch = -19.799999+6.200000+180    # 俯仰角
-roll = -20.400000+180    # 滚转角
+# yaw = 3.300000+2.200000     # 偏航角，用度做单位
+# pitch = -19.799999+6.200000+180    # 俯仰角
+# roll = -20.400000+180    # 滚转角
 
-# yaw = 180     # 偏航角，用度做单位
-# pitch = 180    # 俯仰角
-# roll = 0    # 滚转角
+yaw = 0     # 偏航角，用度做单位
+pitch = 0    # 俯仰角
+roll = 0    # 滚转角
 
 h = 199.000000      # 相机到地面高度，用米做单位
 # 内参矩阵，都以像素为单位  8.0 mm
@@ -38,8 +38,8 @@ lon = 120.4549861111
 # 原始地图路径
 map_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test.tif"
 # 切割后地图路径
-save_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test@cuttest.tif"
-warp_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test@warptest.tif"
+save_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test@cuttest.png"
+warp_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test@warptest.png"
 
 from math import sin, cos, radians
 import utm
