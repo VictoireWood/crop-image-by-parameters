@@ -18,10 +18,9 @@ c_y = 1500
 # 相机离地高度（单位：米）
 h = 199.0       # 示例：100 米
 
-# 相机姿态（弧度制）
-pitch = 0.0     # 示例：轻微俯仰（根据实际情况确定正负）
-yaw   = 0.0     # 示例：
-roll  = 0.0     # 示例：
+yaw = 0     # 偏航角，用度做单位
+pitch = 0    # 俯仰角
+roll = 0    # 滚转角
 
 
 lat_1 = 36.607321780842
@@ -43,134 +42,127 @@ map_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test.tif"
 save_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test@cuttest.png"
 warp_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test@warptest.png"
 
-# ============================
-# ② 遥感地图读取与地理配准信息
-# ============================
 
-# 使用 PIL 读入地图
+
+import numpy as np
+import cv2
+from PIL import Image
+
+# ==============================
+# ② 遥感地图及其地理配准信息
+# ==============================
+
+# 遥感地图文件路径（请替换成实际路径）
+map_path = "path/to/your/map_image.jpg"
+# 用 PIL 读取地图（注意：返回RGB图像，shape 为 (H, W, 3)）
 map_img_pil = Image.open(map_path)
-# 转换为 numpy 数组（RGB 顺序）
 map_img = np.array(map_img_pil)
+# 获取地图图像尺寸
+H_map, W_map = map_img.shape[:2]
 
-# 地图的地理配准信息
-# 地图左上角在 UTM 坐标下的位置
-map_east = 499000.0   # 示例数值
-map_north = 4601000.0  # 示例数值
-# 每个像素代表的实际大小（米/像素）
-resolution = 0.5      # 示例：0.5 米/像素
+# 地图配准：左上顶点（(e1, n1)）和右下顶点（(e2, n2)）的UTM坐标
+e1 = 499000.0   # 例：地图左上角 easting
+n1 = 4601000.0  # 例：地图左上角 northing
+e2 = 501000.0   # 例：地图右下角 easting
+n2 = 4600000.0  # 例：地图右下角 northing
 
-resolution = 
+# 构造从地图像素坐标 [u_map, v_map, 1] 到 UTM 坐标 [X, Y, 1] 的变换矩阵
+T_map2utm = np.array([
+    [(e2 - e1) / W_map,           0, e1],
+    [          0,       (n2 - n1) / H_map, n1],
+    [          0,                0,   1]
+])
+# 说明：对于地图像素 (u_map, v_map)，有
+#   X_utm = e1 + (e2 - e1) * (u_map / W_map)
+#   Y_utm = n1 + (n2 - n1) * (v_map / H_map)
 
-
-# ============================
+# ==============================
 # ③ 构造相机内参矩阵
-# ============================
+# ==============================
+
 K = np.array([
     [f_x,   0, c_x],
     [  0, f_y, c_y],
     [  0,   0,   1]
 ])
 
-# ============================
-# ④ 构造旋转矩阵
-# ============================
-
-def rotate_yaw_pitch_roll(yaw, pitch, roll):
-    # 求三维旋转矩阵
-    R_yaw = np.array([
-        [cos(yaw), -sin(yaw), 0],
-        [sin(yaw), cos(yaw), 0],
-        [0, 0, 1]
-        ])
-    R_pitch = np.array([
-        [cos(pitch), 0, sin(pitch)],
-        [0, 1, 0],
-        [-sin(pitch), 0, cos(pitch)]
-        ])
-    R_roll = np.array([
-        [1, 0, 0],
-        [0, cos(roll), -sin(roll)],
-        [0, sin(roll), cos(roll)]
-        ])
-    # 先绕z轴旋转yaw，再绕y轴旋转pitch，最后绕x轴旋转roll
-    R = R_yaw @ R_pitch @ R_roll
-    return R
-
-R = rotate_yaw_pitch_roll(radians(yaw), radians(pitch), radians(roll))
-
-def get_rotation_matrix(roll, pitch, yaw):
+# ==============================
+# ④ 构造相机旋转矩阵
+# ==============================
+# 注：为了让 pitch = yaw = roll = 0 时相机正垂直俯视，
+# 我们先构造下视基准旋转矩阵 R0，使得将世界中 (X, Y, 0) 点（相对于相机垂直下方）映射到相机时获得正深度。
+# 定义 R0 为：
+R0 = np.array([
+    [1,  0,  0],
+    [0, -1,  0],
+    [0,  0, -1]
+])
+# 接下来构造附加旋转矩阵 R_add，根据惯常 Tait–Bryan 角（旋转顺序 z-y-x），要求当各角为0时 R_add 为单位矩阵。
+def rotation_matrix_from_euler(roll, pitch, yaw):
     """
-    构造旋转矩阵，旋转顺序：先绕 x（roll），再绕 y（pitch），最后绕 z（yaw）。
-    注：根据具体应用，旋转顺序和定义可能需要调整。
+    构造旋转矩阵（旋转顺序：先绕 x 轴（roll），再绕 y 轴（pitch），最后绕 z 轴（yaw））。
+    输入角度单位为弧度。
     """
     R_x = np.array([
-        [1, 0, 0],
-        [0, np.cos(roll), -np.sin(roll)],
-        [0, np.sin(roll),  np.cos(roll)]
+        [1,             0,              0],
+        [0,  np.cos(roll), -np.sin(roll)],
+        [0,  np.sin(roll),  np.cos(roll)]
     ])
-    
     R_y = np.array([
         [ np.cos(pitch), 0, np.sin(pitch)],
         [             0, 1,             0],
         [-np.sin(pitch), 0, np.cos(pitch)]
     ])
-    
     R_z = np.array([
         [np.cos(yaw), -np.sin(yaw), 0],
         [np.sin(yaw),  np.cos(yaw), 0],
         [         0,           0, 1]
     ])
-    
     return R_z @ R_y @ R_x
 
-R = get_rotation_matrix(roll, pitch, yaw)
+# 将角度从度转换为弧度
+roll_rad  = np.deg2rad(roll)
+pitch_rad = np.deg2rad(pitch)
+yaw_rad   = np.deg2rad(yaw)
 
-# ============================
-# ⑤ 构造地面（z=0）到相机图像的单应变换
-# ============================
+R_add = rotation_matrix_from_euler(roll_rad, pitch_rad, yaw_rad)
+# 整体相机旋转矩阵 R
+R = R_add @ R0
 
-# 相机在 UTM 坐标中的位置
+# ==============================
+# ⑤ 构造地面（UTM 坐标平面，z=0）到相机图像的单应变换
+# ==============================
+# 相机中心在UTM下的坐标为 C = [e, n, h]ᵀ
 C = np.array([e, n, h])
 # 平移向量 t = -R · C
 t = - R @ C
 
-# 构造： H_ground2img = K · [r1  r2  t]
-# 其中 r1 和 r2 为 R 的第一列和第二列
-H_ground2img = K @ np.hstack((R[:, :2], t.reshape(3, 1)))
-# 此矩阵满足：对于任意地面上点 [X, Y, 1]ᵀ（UTM 坐标中的齐次表示），
-# [u, v, 1]ᵀ ~ H_ground2img · [X, Y, 1]ᵀ
+# 提取 R 的前两列作为 r₁ 和 r₂
+# 构造 3×3 单应矩阵：H_ground = K · [r1, r2, t]
+H_ground = K @ np.hstack((R[:, 0:2], t.reshape(3, 1)))
+# 此矩阵满足：对于 UTM 地面点 [X, Y, 1]ᵀ（Z=0），图像齐次坐标 ~ H_ground · [X, Y, 1]ᵀ
 
-# ============================
-# ⑥ 构造地图像素到 UTM 坐标的转换矩阵
-# ============================
-# 假设地图像素坐标 (u_map, v_map, 1) 与 UTM 坐标转换满足：
-#   UTM_x = map_east + resolution * u_map
-#   UTM_y = map_north - resolution * v_map
-T_map_to_utm = np.array([
-    [resolution,          0, map_east],
-    [         0, -resolution, map_north],
-    [         0,          0,       1 ]
-])
+# ==============================
+# ⑥ 复合变换：从地图像素到相机图像
+# ==============================
+# 先将地图像素映射到 UTM 坐标，再投影到图像上：
+H_total = H_ground @ T_map2utm
+# cv2.warpPerspective 要求提供的是从输出图像像素到源像素的映射矩阵，
+# 因此取 H_total 的逆：
+H_warp = np.linalg.inv(H_total)
 
-# ============================
-# ⑦ 复合变换：从遥感地图像素到相机图像
-# ============================
-H_map2img = H_ground2img @ T_map_to_utm
-# cv2.warpPerspective 要求提供“从输出图像像素到输入图像像素”的映射，
-# 故这里取 H_map2img 的逆：
-H_warp = np.linalg.inv(H_map2img)
+# ==============================
+# ⑦ 用遥感地图生成模拟相机图像
+# ==============================
+# 定义模拟相机图像的尺寸。此处可按需要设置；
+# 比如，我们可以采用与相机传感器相同的尺寸（例如 2*c_x × 2*c_y）
+sim_width  = int(2 * c_x)
+sim_height = int(2 * c_y)
 
-# ============================
-# ⑧ 定义输出（模拟相机）图像尺寸并生成图像
-# ============================
-# 输出尺寸可依据实际相机传感器分辨率设定（此处示例取宽=2*c_x， 高=2*c_y）
-W_sim = int(2 * c_x)
-H_sim = int(2 * c_y)
+# 使用 cv2.warpPerspective 对遥感地图进行透视变换，生成模拟相机视图
+simulated_img = cv2.warpPerspective(map_img, H_warp, (sim_width, sim_height))
 
-# 使用 warpPerspective 将遥感地图转换为模拟相机图像
-simulated_img = cv2.warpPerspective(map_img, H_warp, (W_sim, H_sim))
-
-# 保存生成的模拟图像
+# 保存结果
 output_path = "simulated_camera_view.jpg"
 cv2.imwrite(output_path, simulated_img)
 print(f"模拟的相机拍摄场景已保存为 '{output_path}'.")
