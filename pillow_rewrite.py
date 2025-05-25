@@ -60,16 +60,10 @@ map_img = np.array(map_img_pil)
 # 获取地图图像尺寸
 H_map, W_map = map_img.shape[:2]
 
-# 地图配准：左上顶点（(e1, n1)）和右下顶点（(e2, n2)）的UTM坐标
-e1 = 499000.0   # 例：地图左上角 easting
-n1 = 4601000.0  # 例：地图左上角 northing
-e2 = 501000.0   # 例：地图右下角 easting
-n2 = 4600000.0  # 例：地图右下角 northing
-
 # 构造从地图像素坐标 [u_map, v_map, 1] 到 UTM 坐标 [X, Y, 1] 的变换矩阵
 T_map2utm = np.array([
-    [(e2 - e1) / W_map,           0, e1],
-    [          0,       (n2 - n1) / H_map, n1],
+    [(e_2 - e_1) / W_map,           0, e_1],
+    [          0,       (n_2 - n_1) / H_map, n_1],
     [          0,                0,   1]
 ])
 # 说明：对于地图像素 (u_map, v_map)，有
