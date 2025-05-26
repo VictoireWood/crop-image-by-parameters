@@ -1,22 +1,34 @@
 import cv2
 import numpy as np
+import utm
 
 # ==============================
 # ① 相机参数设置（请按实际情况替换数值）
 # ==============================
 # 相机内参（单位：像素）
-f_x = 1200.0      # x方向焦距
-f_y = 1200.0      # y方向焦距
-c_x = 640.0       # 主点 x 坐标（假设图像宽度的一半）
-c_y = 360.0       # 主点 y 坐标（假设图像高度的一半）
+f_x = 1200
+f_y = 1200
+c_x = 2000
+c_y = 1500
 
 # 相机距离地面的高度（单位：米）
-h = 100.0
+h = 199.0
 
 # 相机姿态（角度单位，注意当 pitch=yaw=roll=0 时，相机正垂直俯视地面）
-pitch_deg = 10.0  # 示例：10度
-yaw_deg   = 5.0   # 示例：5度
-roll_deg  = 0.0   # 示例：0度
+pitch_deg = 0.0  # 俯仰角 示例：10度
+yaw_deg   = 0.0   # 偏航角 示例：5度
+roll_deg  = 0.0   # 滚转角 示例：0度
+
+# 已知遥感地图的四角UTM坐标以及遥感地图大小
+# 地图四个角点的经纬度坐标，1为左上，2为右下
+lat_1 = 36.607321780842
+lon_1 = 120.430745854908
+lat_2 = 36.587287108611
+lon_2 = 120.456556510736
+# 相机中心的垂点的经纬度坐标
+# 36 deg 35' 28.05" N, 120 deg 27' 17.95" E
+lat = 36.5911250000
+lon = 120.4549861111
 
 # 将角度转换为弧度
 pitch = np.deg2rad(pitch_deg)
@@ -24,14 +36,17 @@ yaw   = np.deg2rad(yaw_deg)
 roll  = np.deg2rad(roll_deg)
 
 # 相机垂足的UTM坐标（单位：米）
-e = 500000.0    
-n = 4600000.0   
+e, n, _, _ = utm.from_latlon(latitude=lat, longitude=lon)
 
 # ==============================
 # ② 地图信息与地理配准
 # ==============================
 # 遥感地图文件路径（请替换为实际路径）
-map_path = "path/to/your/map_image.jpg"
+map_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test.tif"
+# 切割后地图路径
+save_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test@cuttest.png"
+warp_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test@warptest.png"
+
 # 使用 cv2.imread 读取地图（注意：默认 BGR 顺序）
 map_img = cv2.imread(map_path)
 if map_img is None:
@@ -42,10 +57,12 @@ H_map, W_map = map_img.shape[:2]
 
 # 地图配准信息：
 # 左上顶点UTM坐标 (e₁, n₁) 和右下顶点UTM 坐标 (e₂, n₂)
-e1 = 499000.0    # 地图左上顶点 easting
-n1 = 4601000.0   # 地图左上顶点 northing
-e2 = 501000.0    # 地图右下顶点 easting
-n2 = 4600000.0   # 地图右下顶点 northing
+# e1 = 499000.0    # 地图左上顶点 easting
+# n1 = 4601000.0   # 地图左上顶点 northing
+# e2 = 501000.0    # 地图右下顶点 easting
+# n2 = 4600000.0   # 地图右下顶点 northing
+e1, n1,_ ,_ = utm.from_latlon(latitude=lat_1, longitude=lon_1)
+e2, n2, _, _ = utm.from_latlon(latitude=lat_2, longitude=lon_2)
 
 # ==============================
 # ③ 计算相机可视区域在地面上的四个角点（UTM坐标）
@@ -138,9 +155,26 @@ cv2.fillPoly(mask, [map_poly], 255)
 # 将掩模应用到地图图像上（对彩色图，每个通道均应用）
 map_visible = cv2.bitwise_and(map_img, map_img, mask=mask)
 
+# 计算四边形的最小外接矩形，返回的 (x, y) 为长方形左上角坐标，w, h 分别为宽和高
+x, y, w, h = cv2.boundingRect(map_poly)
+
+# 裁剪出该最小外接矩形区域
+cropped = map_visible[y:y+h, x:x+w]
+
 # 如需在结果中画出边界轮廓（红色），可使用：
-cv2.polylines(map_visible, [map_poly], isClosed=True, color=(0, 0, 255), thickness=2)
+# cv2.polylines(map_visible, [map_poly], isClosed=True, color=(0, 0, 255), thickness=2)
+
+src_pts = np.array(map_poly, dtype=np.float32)
+dst_pts = cam_corners.astype(np.float32)
+
+# 计算透视变换矩阵
+M = cv2.getPerspectiveTransform(src_pts, dst_pts)
+
+simulated_view = cv2.warpPerspective(map_img, M, (width_cam, height_cam))
 
 # 保存结果
-cv2.imwrite("camera_fov_on_map.jpg", map_visible)
-print("结果已保存为 'camera_fov_on_map.jpg'.")
+cv2.imwrite(save_path, cropped)
+print("可视区域结果已保存！")
+
+cv2.imwrite(warp_path, simulated_view)
+print("warp结果已保存！")

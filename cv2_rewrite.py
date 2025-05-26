@@ -142,7 +142,7 @@ simulated_width  = int(2 * c_x)
 simulated_height = int(2 * c_y)
 
 # 使用 warpPerspective 将遥感地图转换为模拟相机视图
-simulated_view = cv2.warpPerspective(map_img, H_warp, (simulated_width, simulated_height))
+simulated_view = cv2.warpPerspective(map_img, M, (simulated_width, simulated_height))
 
 # 保存模拟结果
 # output_path = "simulated_camera_view.jpg"
