@@ -1,6 +1,6 @@
-yaw = 0     # 偏航角，用度做单位
-pitch = 0    # 俯仰角
-roll = 0    # 滚转角
+yaw_deg = 0     # 偏航角，用度做单位
+pitch_deg = 0    # 俯仰角
+roll_deg = 0    # 滚转角
 
 h = 199.000000      # 相机到地面高度，用米做单位
 # 内参矩阵，都以像素为单位  8.0 mm
@@ -42,9 +42,9 @@ import cv2
 # ==============================
 
 # 转换为弧度
-pitch = np.deg2rad(pitch)
-yaw   = np.deg2rad(yaw)
-roll  = np.deg2rad(roll)
+pitch = np.deg2rad(pitch_deg)
+yaw   = np.deg2rad(yaw_deg)
+roll  = np.deg2rad(roll_deg)
 
 # ==============================
 # ② 遥感地图及其地理配准信息
