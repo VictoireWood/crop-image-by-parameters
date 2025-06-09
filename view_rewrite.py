@@ -19,13 +19,17 @@ h = 230.0
 # yaw_deg   = 0.0   # 偏航角 示例：5度
 # roll_deg  = 30.0   # 滚转角 示例：0度
 
-# pitch_deg = -19.799999+6.200000  # 俯仰角 示例：10度
-# yaw_deg   = 3.300000+2.200000   # 偏航角 示例：5度
-# roll_deg  = -20.400000   # 滚转角 示例：0度
+pitch_deg = -19.799999  # 俯仰角 示例：10度
+yaw_deg   = 3.300000   # 偏航角 示例：5度
+roll_deg  = -0.00000   # 滚转角 示例：0度
 
-roll_deg    = 30.0  # 俯仰角，抬起机头为正 示例：10度
-yaw_deg     = 0.0   # 偏航角 示例：5度
-pitch_deg   = 0.0   # 滚转角，左侧机翼上抬为正 示例：0度
+# roll_deg    = 0.0  # 俯仰角，抬起机头为负 示例：10度
+# yaw_deg     = 20.0   # 偏航角，机头逆时针旋转为正 示例：5度
+# pitch_deg   = 0.0   # 滚转角，左侧机翼上抬为正 示例：0度
+
+# pitch_deg   = 0.0  # 俯仰角，抬起机头为负 示例：10度
+# yaw_deg     = 0.0   # 偏航角，机头逆时针旋转为正 示例：5度
+# roll_deg    = 20.0   # 滚转角，左侧机翼上抬为正 示例：0度
 
 # 已知遥感地图的四角UTM坐标以及遥感地图大小
 # 地图四个角点的经纬度坐标，1为左上，2为右下
@@ -39,9 +43,13 @@ lat = 36.5911250000
 lon = 120.4549861111
 
 # 将角度转换为弧度
-pitch = np.deg2rad(pitch_deg)
-yaw   = np.deg2rad(yaw_deg)
-roll  = np.deg2rad(roll_deg)
+# pitch = np.deg2rad(pitch_deg)
+# yaw   = np.deg2rad(yaw_deg)
+# roll  = np.deg2rad(roll_deg)
+
+pitch = np.deg2rad(-roll_deg)
+yaw   = np.deg2rad(-yaw_deg)
+roll  = np.deg2rad(-pitch_deg)
 
 # 相机垂足的UTM坐标（单位：米）
 e, n, _, _ = utm.from_latlon(latitude=lat, longitude=lon)
@@ -54,6 +62,7 @@ map_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test.tif"
 # 切割后地图路径
 save_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test@cuttest.png"
 warp_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test@warptest.png"
+place_path = r"E:\GeoVINS\Datasets\0521test\L20\0521test@placetest.png"
 
 # 使用 cv2.imread 读取地图（注意：默认 BGR 顺序）
 map_img = cv2.imread(map_path)
@@ -186,3 +195,141 @@ print("可视区域结果已保存！")
 
 cv2.imwrite(warp_path, simulated_view)
 print("warp结果已保存！")
+
+
+# ==============================
+
+def order_points(pts):
+    """
+    对 4 个点进行排序，返回的顺序为：
+    左上、右上、右下、左下。
+    计算方法：
+      - 左上角对应 x+y 值最小，右下角对应 x+y 值最大；
+      - 右上角对应 x-y 值最小，左下角对应 x-y 值最大。
+    """
+    rect = np.zeros((4, 2), dtype="float32")
+    
+    # 按照 x+y 求和
+    s = pts.sum(axis=1)
+    rect[0] = pts[np.argmin(s)]  # 左上角：和最小
+    rect[2] = pts[np.argmax(s)]  # 右下角：和最大
+
+    # 按照 x-y 差值排序
+    diff = np.diff(pts, axis=1)
+    rect[1] = pts[np.argmin(diff)]  # 右上角：差值最小
+    rect[3] = pts[np.argmax(diff)]  # 左下角：差值最大
+    
+    return rect
+
+# # 示例：假设已知的凸四边形 4 个顶点（顺序：左上、右上、右下、左下）
+# # 请替换下面的坐标为实际数值
+# p1 = (100, 50)    # 左上
+# p2 = (400, 50)    # 右上
+# p3 = (400, 300)   # 右下
+# p4 = (100, 300)   # 左下
+
+# # 将 4 个点组成 NumPy 数组 (浮点型)
+# pts = np.array([p1, p2, p3, p4], dtype="float32")
+
+# 计算凸四边形的最小外接旋转矩形（斜长方形）
+# cv2.minAreaRect 返回一个元组：((center_x, center_y), (width, height), angle)
+min_rect = cv2.minAreaRect(src_pts)
+
+# 通过 cv2.boxPoints 得到矩形的 4 个顶点
+box = cv2.boxPoints(min_rect)
+box = np.array(box, dtype="float32")
+
+box = order_points(box)
+
+# 对得到的 4 个点进行重新排序，使得顺序为：左上、右上、右下、左下
+# ordered_box = order_points(box)
+
+# print("最小外接旋转矩形（斜长方形）的顶点坐标:")
+# print("左上角：", ordered_box[0])
+# print("右上角：", ordered_box[1])
+# print("右下角：", ordered_box[2])
+# print("左下角：", ordered_box[3])
+
+# ----------------------------
+# 根据旋转矩形的4个顶点进行透视变换
+# ----------------------------
+# 计算目标矩形的宽度和高度
+# widthA = np.linalg.norm(best_box[2] - best_box[3])  # 底边宽度
+# widthB = np.linalg.norm(best_box[1] - best_box[0])  # 顶边宽度
+# maxWidth = int(max(widthA, widthB))
+
+# heightA = np.linalg.norm(best_box[1] - best_box[2])  # 右侧高度
+# heightB = np.linalg.norm(best_box[0] - best_box[3])  # 左侧高度
+# maxHeight = int(max(heightA, heightB))
+
+widthA = np.linalg.norm(box[2] - box[3])  # 底边宽度
+widthB = np.linalg.norm(box[1] - box[0])  # 顶边宽度
+maxWidth = int(max(widthA, widthB))
+
+heightA = np.linalg.norm(box[1] - box[2])  # 右侧高度
+heightB = np.linalg.norm(box[0] - box[3])  # 左侧高度
+maxHeight = int(max(heightA, heightB))
+
+cam_corners_new = np.array([
+    [0, 0],                             # 左上角
+    [maxWidth - 1, 0],                 # 右上角
+    [maxWidth - 1, maxHeight - 1],      # 右下角
+    [0, maxHeight - 1]                 # 左下角
+], dtype=np.float32)
+
+dst_pts_new = cam_corners_new.astype(np.float32)
+
+
+M = cv2.getPerspectiveTransform(box, dst_pts_new)
+warped = cv2.warpPerspective(map_img, M, (maxWidth, maxHeight))
+
+
+
+
+def remove_black_borders(img, thresh=0):
+    """
+    移除图像四周全为黑色的边框。
+    参数：
+      img：输入图像（可以是彩色或灰度）
+      thresh：对灰度图而言，大于 thresh 的值判断为有效像素（这里 thresh 默认为0，即全为0才认为是黑）。
+    返回：
+      裁剪后的图像。
+    """
+    # 如果是彩色图像则转换为灰度图便于处理
+    if len(img.shape) == 3:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = img
+
+    # 找出每一行和每一列是否存在非黑像素
+    # 方法1：利用 np.max 沿指定轴求最大值
+    rows = np.where(np.max(gray, axis=1) > thresh)[0]
+    cols = np.where(np.max(gray, axis=0) > thresh)[0]
+
+    # 如果图像中不存在非黑区域，则直接返回原图
+    if rows.size == 0 or cols.size == 0:
+        return img
+
+    top, bottom = rows[0], rows[-1]
+    left, right = cols[0], cols[-1]
+    
+    # 裁剪时注意 bottom 和 right 为包含索引，所以要加 1
+    cropped = img[top:bottom+1, left:right+1]
+    return cropped
+
+# 去除图像边缘的黑边（不同边缘可能宽度不同）
+warped = remove_black_borders(warped)
+
+cv2.imwrite(place_path, warped)
+print("斜长方形内的图像已保存！")
+
+
+# cv2.polylines(map_img, [pts1_clamped], isClosed=True, color=(0, 0, 255), thickness=2)  # 红色
+# cv2.polylines(map_img, [pts2_clamped], isClosed=True, color=(0, 255, 0), thickness=2)  # 绿色
+
+# # ---------------------------
+# # ⑤ 保存结果图像
+# # 请自行设置输出路径与文件名
+# output_path = "output.jpg"
+# cv2.imwrite(output_path, image)
+# print(f"带有边框的图像已保存为 {output_path}")
