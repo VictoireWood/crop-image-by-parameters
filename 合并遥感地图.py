@@ -4,7 +4,7 @@ import csv
 import pandas as pd
 
 # ======== ① 参数设置 ========
-# 假设6张地图的文件路径（请修改为实际文件路径）
+# 假设7张地图的文件路径（请修改为实际文件路径）
 map_paths = [
     r"D:\Dataset\qingxie\Match-Dataset-train\gs202533-ir\satellite\000000.jpg",
     r"D:\Dataset\qingxie\Match-Dataset-train\gs202533-ir\satellite\000001.jpg",
@@ -18,8 +18,6 @@ map_paths = [
 # CSV 文件路径，注意使用原始字符串避免转义问题
 csv_path = r"D:\Dataset\qingxie\Match-Dataset-train\gs202533-ir\map.csv"
 
-
-
 # 每幅图像的像素尺寸均为8000×8000
 img_width = 8000
 img_height = 8000
@@ -27,8 +25,6 @@ img_height = 8000
 # 遥感地图的地理配准信息（经纬度），注意：经度通常增大表示向东，
 # 纬度增大表示向北。
 # 这里给出的6幅图每张对应的左下角经纬度（lon, lat）
-
-import pandas as pd
 
 # 读取 CSV 文件
 df = pd.read_csv(csv_path)
@@ -51,31 +47,6 @@ print("\n右上角经纬度列表:")
 for coord in rt_coords:
     print(coord)
 
-
-
-
-
-# ll_coords = [
-#     (lon01, lat01),  # 例如 (100.0, 20.0)
-#     (lon11, lat11),  # 例如 (100.0, 20.0)
-#     (lon21, lat21),  # 替换为实际值
-#     (lon31, lat31),
-#     (lon41, lat41),
-#     (lon51, lat51),
-#     (lon61, lat61),
-# ]
-
-# # 6幅图对应的右上角经纬度（lon, lat）
-# rt_coords = [
-#     (lon02, lat02),  # 例如 (101.0, 21.0)
-#     (lon12, lat12),  # 例如 (100.5, 20.5)
-#     (lon22, lat22),
-#     (lon32, lat32),
-#     (lon42, lat42),
-#     (lon52, lat52),
-#     (lon62, lat62)
-# ]
-
 # —— 示例（仅供参考，请替换为你的实际数据）——
 # ll_coords = [(100.0, 20.0), (101.0,20.5), (100.5,20.2), (100.8,19.8), (100.2,20.1), (101.2,20.3)]
 # rt_coords = [(100.5, 20.5), (101.5,21.0), (101.0,20.7), (101.3,20.3), (100.7,20.6), (101.7,20.8)]
@@ -92,6 +63,9 @@ merged_top_left  = (global_left, global_top)
 merged_bot_right = (global_right, global_bottom)
 print("合并后地图左上角经纬度：", merged_top_left)
 print("合并后地图右下角经纬度：", merged_bot_right)
+
+filename = f"lon1_{global_left}@lat1_{global_top}@lon2_{global_right}@lat2_{global_bottom}"
+save_path = rf"D:\Dataset\qingxie\Match-Dataset-train\gs202533-ir\satellite\{filename}.jpg"
 
 # ======== ③ 确定目标分辨率（度/像素） ========
 # 对于每幅图，分辨率（经度方向、纬度方向）：
@@ -159,5 +133,5 @@ for i, path in enumerate(map_paths):
     mosaic[y_offset:y_offset+target_height, x_offset:x_offset+target_width] = resized_img
 
 # 保存合并后的大地图
-cv2.imwrite("mosaic.jpg", mosaic)
+cv2.imwrite(save_path, mosaic)
 print("合并后的大地图已保存为 mosaic.jpg")
