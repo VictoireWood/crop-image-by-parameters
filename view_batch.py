@@ -10,8 +10,8 @@ import os
 # 相机内参（单位：像素）
 f_x = 600
 f_y = 600
-f_x = 833.3
-f_y = 833.3
+# f_x = 833.3
+# f_y = 833.3
 c_x = 640
 c_y = 512
 
@@ -23,6 +23,18 @@ map_path = r"D:\Dataset\qingxie\Match-Dataset-train\gs202533-ir\satellite\lon1_1
 drone_dir = r"D:\Dataset\qingxie\Match-Dataset-train\gs202533-ir\drone"
 # CSV 文件路径（请根据实际情况修改）
 drone_csv_path = r"D:\Dataset\qingxie\Match-Dataset-train\gs202533-ir\drone.csv"
+
+# 定义 CSV 表头（共11列）
+columns = [
+    "drone_name", "zone_number", "zone_letter",
+    "left_top_e", "left_top_n",
+    "right_top_e", "right_top_n",
+    "right_bottom_e", "right_bottom_n",
+    "left_bottom_e", "left_bottom_n"
+]
+area_csv_path = os.path.join(os.path.dirname(drone_dir), "area_coordinates.csv")
+df_header = pd.DataFrame(columns=columns)
+df_header.to_csv(area_csv_path, index=False, mode='w')
 
 # 读入 CSV 文件，pandas 会自动解析列类型
 df = pd.read_csv(drone_csv_path)
@@ -147,11 +159,11 @@ def trim_and_warp(drone_dir, map_path, tuple_data):
     yaw   = np.deg2rad(yaw_deg)
     roll  = np.deg2rad(pitch_deg)
 
-    e, n, _, _ = utm.from_latlon(latitude=lat, longitude=lon)
+    e, n, zone_number, zone_letter = utm.from_latlon(latitude=lat, longitude=lon)
     # 地图配准信息：
     # 左上顶点UTM坐标 (e₁, n₁) 和右下顶点UTM 坐标 (e₂, n₂)
-    e1, n1,_ ,_ = utm.from_latlon(latitude=lat_1, longitude=lon_1)
-    e2, n2, _, _ = utm.from_latlon(latitude=lat_2, longitude=lon_2)
+    e1, n1, _ ,_ = utm.from_latlon(latitude=lat_1, longitude=lon_1, force_zone_number=zone_number, force_zone_letter=zone_letter)
+    e2, n2, _, _ = utm.from_latlon(latitude=lat_2, longitude=lon_2, force_zone_number=zone_number, force_zone_letter=zone_letter)
 
     # ==============================
     # ③ 计算相机可视区域在地面上的四个角点（UTM坐标）
@@ -231,6 +243,7 @@ def trim_and_warp(drone_dir, map_path, tuple_data):
         v_map = ((n1 - N) / (n1 - n2)) * H_map
         map_poly.append([u_map, v_map])
     map_poly = np.array(map_poly, dtype=np.int32)
+    src_pts = np.array(map_poly, dtype=np.float32)
 
     # ==============================
     # ⑤ 绘制掩模：在遥感地图上用凸四边形（可视区域）框出，并将外部区域变为黑色
@@ -252,7 +265,7 @@ def trim_and_warp(drone_dir, map_path, tuple_data):
     cv2.imwrite(save_path, cropped)
     # print("可视区域结果已保存！")
 
-    src_pts = np.array(map_poly, dtype=np.float32)
+    # src_pts = np.array(map_poly, dtype=np.float32)
     dst_pts = cam_corners.astype(np.float32)
 
     # 计算透视变换矩阵
@@ -274,6 +287,29 @@ def trim_and_warp(drone_dir, map_path, tuple_data):
     box = order_points(box)
     box = best_cyclic_order(box, src_pts)
 
+    coordinates = []
+    # 左上角对应的UTM坐标
+    for i in range(4):
+        e_p = box[i][0] * (e2 - e1) / W_map + e1
+        n_p = n1 - box[i][1] * (n1 - n2) / H_map
+        coordinates.append([e_p, n_p])
+    coordinates = np.array(coordinates, dtype=np.float32)
+    
+    row = (
+        drone_name,
+        zone_number,
+        zone_letter,
+        coordinates[0, 0], coordinates[0, 1],
+        coordinates[1, 0], coordinates[1, 1],
+        coordinates[2, 0], coordinates[2, 1],
+        coordinates[3, 0], coordinates[3, 1]
+    )
+
+    # 将这一行放入 DataFrame，然后追加写入 CSV（不写入表头）
+    df_row = pd.DataFrame([row], columns=columns)
+    df_row.to_csv(area_csv_path, mode='a', index=False, header=False)
+
+    # 计算宽高
     widthA = np.linalg.norm(box[2] - box[3])  # 底边宽度
     widthB = np.linalg.norm(box[1] - box[0])  # 顶边宽度
     maxWidth = int(max(widthA, widthB))
